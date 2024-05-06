@@ -35,11 +35,17 @@ class SlotMachineGame:
 
         self.font = pygame.font.Font(None, 36)
 
-        self.balance = 1000
+        self.balance = 0
         self.lines = 1
         self.bet = 1
+        self.total_spins = 0
+        self.total_winnings = 0
+        self.symbol_matrix = []
 
         self.running = True
+
+        self.choose_lines_window = True
+        self.spin_window = False
 
     def run(self):
         while self.running:
@@ -47,22 +53,24 @@ class SlotMachineGame:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        self.spin()
-                    elif event.key == pygame.K_q:
-                        self.running = False
-                    elif event.key == pygame.K_RETURN:
-                        self.lines = self.get_number_of_lines()
-                    elif event.key == pygame.K_BACKSPACE:
-                        self.bet = self.get_bet()
+                    if self.choose_lines_window:
+                        if event.key == pygame.K_RETURN:
+                            self.choose_lines_window = False
+                            self.lines = self.get_number_of_lines()
+                            self.spin_window = True
+                    elif self.spin_window:
+                        if event.key == pygame.K_q:
+                            self.spin()
+                        elif event.key == pygame.K_a:
+                            self.add_money()
 
             self.screen.fill((255, 255, 255))
 
-            self.draw_text(f"Balance: ${self.balance}", (20, 20))
-            self.draw_text("Press SPACE to spin, Q to quit", (20, 60))
-
-            self.draw_lines_selection()
-            self.draw_bet_selection()
+            if self.choose_lines_window:
+                self.draw_text("Press ENTER to start", (20, 20))
+            elif self.spin_window:
+                self.draw_text("Press Q to spin, A to add money", (20, 20))
+                self.draw_symbol_matrix()
 
             pygame.display.flip()
             self.clock.tick(60)
@@ -73,13 +81,14 @@ class SlotMachineGame:
         surface = self.font.render(text, True, (0, 0, 0))
         self.screen.blit(surface, pos)
 
-    def draw_lines_selection(self):
-        lines_text = self.font.render(f"Lines to bet on: {self.lines}", True, (0, 0, 0))
-        self.screen.blit(lines_text, (20, 100))
-
-    def draw_bet_selection(self):
-        bet_text = self.font.render(f"Betting amount per line: {self.bet}", True, (0, 0, 0))
-        self.screen.blit(bet_text, (20, 150))
+    def draw_symbol_matrix(self):
+        if self.symbol_matrix:
+            for row_index, row in enumerate(self.symbol_matrix):
+                for col_index, symbol in enumerate(row):
+                    x = 200 + col_index * 100
+                    y = 200 + row_index * 100
+                    symbol_text = self.font.render(symbol, True, (0, 0, 0))
+                    self.screen.blit(symbol_text, (x, y))
 
     def spin(self):
         total_bet = self.lines * self.bet
@@ -87,10 +96,14 @@ class SlotMachineGame:
             print(f"Not enough balance. Your balance is ${self.balance}.")
             return
 
+        self.total_spins += 1
         slots = self.get_slot_machine_spin(ROWS, COLS, symbol_count)
 
-        winnings, winning_lines = self.check_winnings(slots, self.lines, self.bet, symbol_values)
+        winnings, winning_lines, symbols_matrix = self.check_winnings(slots, self.lines, self.bet, symbol_values)
+        self.total_winnings += winnings
         self.balance += winnings - total_bet
+
+        self.symbol_matrix = symbols_matrix
 
         print(f"You won ${winnings}.{' You won on line(s): ' + ', '.join(map(str, winning_lines)) if winning_lines else ''}")
 
@@ -104,15 +117,12 @@ class SlotMachineGame:
             else:
                 print("Please enter a valid number of lines")
 
-    def get_bet(self):
-        while True:
-            bet_input = self.show_input_dialog("Enter bet amount per line ($1-$1000):")
-            if bet_input.isdigit():
-                bet = int(bet_input)
-                if MIN_BET <= bet <= MAX_BET:
-                    return bet
-            else:
-                print("Please enter a valid bet amount")
+    def add_money(self):
+        money_input = self.show_input_dialog("Enter amount to add:")
+        if money_input.isdigit():
+            money = int(money_input)
+            if money > 0:
+                self.balance += money
 
     def show_input_dialog(self, prompt):
         user_input = ""
@@ -144,20 +154,12 @@ class SlotMachineGame:
         return user_input
 
     def get_slot_machine_spin(self, rows, cols, symbols):
-        all_symbols = []
-        for symbol, symbol_count in symbols.items():
-            for _ in range(symbol_count):
-                all_symbols.append(symbol)
-
         columns = []
         for _ in range(cols):
             column = []
-            current_symbols = all_symbols[:]
             for _ in range(rows):
-                value = random.choice(current_symbols)
-                current_symbols.remove(value)
-                column.append(value)
-
+                symbol = random.choice(list(symbols.keys()))
+                column.append(symbol)
             columns.append(column)
 
         return columns
@@ -165,17 +167,21 @@ class SlotMachineGame:
     def check_winnings(self, columns, lines, bet, values):
         winnings = 0
         winning_lines = []
+        symbols_matrix = []
         for line in range(lines):
             symbol = columns[0][line]
+            symbols_row = []
             for column in columns:
                 symbol_to_check = column[line]
+                symbols_row.append(symbol_to_check)
                 if symbol != symbol_to_check:
                     break
             else:
                 winnings += values[symbol] * bet
                 winning_lines.append(line + 1)
+            symbols_matrix.append(symbols_row)
 
-        return winnings, winning_lines
+        return winnings, winning_lines, symbols_matrix
 
 def main():
     game = SlotMachineGame()
