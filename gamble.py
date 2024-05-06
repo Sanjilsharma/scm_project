@@ -1,3 +1,4 @@
+import pygame
 import random
 
 MAX_LINES = 3
@@ -21,131 +22,164 @@ symbol_values = {
     "D": 2
 }
 
-def check_winnings(columns, lines, bet, values):
-    winnings = 0
-    winning_lines = []
-    for line in range(lines):
-        symbol = columns[0][line]
-        for column in columns:
-            symbol_to_check = column[line]
-            if symbol != symbol_to_check:
-                break
-        else:
-            winnings += values[symbol] * bet
-            winning_lines.append(line + 1)
+class SlotMachineGame:
+    def __init__(self):
+        pygame.init()
 
-    return winnings, winning_lines
+        self.screen_width = 800
+        self.screen_height = 600
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        pygame.display.set_caption("Slot Machine")
 
+        self.clock = pygame.time.Clock()
 
-def get_slot_machine_spin(rows, cols, symbols):
-    all_symbols = []
-    for symbol, symbol_count in symbols.items():
-        for _ in range(symbol_count):
-            all_symbols.append(symbol)
+        self.font = pygame.font.Font(None, 36)
 
-    columns = []
-    for _ in range(cols):
-        column = []
-        current_symbols = all_symbols[:]
-        for _ in range(rows):
-            value = random.choice(current_symbols)
-            current_symbols.remove(value)
-            column.append(value)
+        self.balance = 1000
+        self.lines = 1
+        self.bet = 1
 
-        columns.append(column)
+        self.running = True
 
-    return columns
+    def run(self):
+        while self.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        self.spin()
+                    elif event.key == pygame.K_q:
+                        self.running = False
+                    elif event.key == pygame.K_RETURN:
+                        self.lines = self.get_number_of_lines()
+                    elif event.key == pygame.K_BACKSPACE:
+                        self.bet = self.get_bet()
 
-def print_slot_machine(columns):
-    for row in range(len(columns[0])):
-        for i, column in enumerate(columns):
-            if i != len(columns) - 1:
-                print(column[row], end =" | ")
-            else:
-                print(column[row], end="")
-        print()
+            self.screen.fill((255, 255, 255))
 
+            self.draw_text(f"Balance: ${self.balance}", (20, 20))
+            self.draw_text("Press SPACE to spin, Q to quit", (20, 60))
 
-def deposit():
-    while True:
-        amount = input("What would you like to deposit? $")
-        if amount.isdigit():
-            amount = int(amount)
-            if amount > 0: 
-                break
-            else:
-                print("Amount must be greater than 0")
-        else:
-            print("Please enter a valid amount")
+            self.draw_lines_selection()
+            self.draw_bet_selection()
 
-    return amount
+            pygame.display.flip()
+            self.clock.tick(60)
 
+        pygame.quit()
 
-def get_number_of_lines():
-    while True:
-        lines = input(f"Enter the number of lines to bet on (1-{MAX_LINES}): ")
-        if lines.isdigit():
-            lines = int(lines)
-            if 1 <= lines <= MAX_LINES:
-                break
+    def draw_text(self, text, pos):
+        surface = self.font.render(text, True, (0, 0, 0))
+        self.screen.blit(surface, pos)
+
+    def draw_lines_selection(self):
+        lines_text = self.font.render(f"Lines to bet on: {self.lines}", True, (0, 0, 0))
+        self.screen.blit(lines_text, (20, 100))
+
+    def draw_bet_selection(self):
+        bet_text = self.font.render(f"Betting amount per line: {self.bet}", True, (0, 0, 0))
+        self.screen.blit(bet_text, (20, 150))
+
+    def spin(self):
+        total_bet = self.lines * self.bet
+        if total_bet > self.balance:
+            print(f"Not enough balance. Your balance is ${self.balance}.")
+            return
+
+        slots = self.get_slot_machine_spin(ROWS, COLS, symbol_count)
+
+        winnings, winning_lines = self.check_winnings(slots, self.lines, self.bet, symbol_values)
+        self.balance += winnings - total_bet
+
+        print(f"You won ${winnings}.{' You won on line(s): ' + ', '.join(map(str, winning_lines)) if winning_lines else ''}")
+
+    def get_number_of_lines(self):
+        while True:
+            lines_input = self.show_input_dialog("Enter the number of lines to bet on (1-3):")
+            if lines_input.isdigit():
+                lines = int(lines_input)
+                if 1 <= lines <= MAX_LINES:
+                    return lines
             else:
                 print("Please enter a valid number of lines")
-        else:
-            print("Please enter a valid number")
 
-    return lines
-
-
-def get_bet():
-    while True:
-        amount = input("What would you like to bet on each line? $")
-        if amount.isdigit():
-            amount = int(amount)
-            if MIN_BET <= amount <= MAX_BET:
-                break
+    def get_bet(self):
+        while True:
+            bet_input = self.show_input_dialog("Enter bet amount per line ($1-$1000):")
+            if bet_input.isdigit():
+                bet = int(bet_input)
+                if MIN_BET <= bet <= MAX_BET:
+                    return bet
             else:
-                print(f"Amount must be between ${MIN_BET} and ${MAX_BET}")
-        else:
-            print("Please enter a valid amount")
+                print("Please enter a valid bet amount")
 
-    return amount
+    def show_input_dialog(self, prompt):
+        user_input = ""
+        input_rect = pygame.Rect(0, 0, 200, 30)
+        input_rect.center = (self.screen_width // 2, self.screen_height // 2)
 
+        active = True
+        while active:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    active = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        active = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        user_input = user_input[:-1]
+                    else:
+                        user_input += event.unicode
 
-def spin(balance):
-    lines = get_number_of_lines()
-    while True:
-        bet = get_bet()
-        total_bet = bet * lines
+            self.screen.fill((255, 255, 255))
+            pygame.draw.rect(self.screen, (0, 0, 0), input_rect, 2)
+            self.draw_text(prompt, (input_rect.x, input_rect.y - 40))
+            self.draw_text(user_input, (input_rect.x + 5, input_rect.y + 5))
 
-        if total_bet > balance:
-            print(f"You don't have enough balance to bet this amount. You have ${balance}")
-        else:
-            break
+            pygame.display.flip()
+            self.clock.tick(60)
 
-    print(f"You're betting ${bet} on {lines} lines. Total bet is equal to: ${total_bet}")
+        return user_input
 
-    slots = get_slot_machine_spin(ROWS, COLS, symbol_count)
-    print_slot_machine(slots)
-    winnings, winning_lines = check_winnings(slots, lines, bet, symbol_values)
-    print(f"You won ${winnings}.")
-    if winning_lines:
-        print(f"You won on line(s): {', '.join(map(str, winning_lines))}")
-    else:
-        print("No winning lines.")
+    def get_slot_machine_spin(self, rows, cols, symbols):
+        all_symbols = []
+        for symbol, symbol_count in symbols.items():
+            for _ in range(symbol_count):
+                all_symbols.append(symbol)
 
-    return winnings - total_bet
+        columns = []
+        for _ in range(cols):
+            column = []
+            current_symbols = all_symbols[:]
+            for _ in range(rows):
+                value = random.choice(current_symbols)
+                current_symbols.remove(value)
+                column.append(value)
 
+            columns.append(column)
+
+        return columns
+
+    def check_winnings(self, columns, lines, bet, values):
+        winnings = 0
+        winning_lines = []
+        for line in range(lines):
+            symbol = columns[0][line]
+            for column in columns:
+                symbol_to_check = column[line]
+                if symbol != symbol_to_check:
+                    break
+            else:
+                winnings += values[symbol] * bet
+                winning_lines.append(line + 1)
+
+        return winnings, winning_lines
 
 def main():
-    balance = deposit()
-    while True:
-        print(f"Current balance is ${balance}")
-        answer = input("Press enter to play (q to quit): ")
-        if answer == "q":
-            break
-        balance += spin(balance)
+    game = SlotMachineGame()
+    game.run()
 
-    print(f"You left with ${balance}")
-
-
-main()
+if __name__ == "__main__":
+    main()
